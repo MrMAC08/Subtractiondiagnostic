@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Subtraction Process Diagnostic</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0;}
+        .container { background: white; padding: 30px; border: 3px solid #333; border-radius: 12px; width: 100%; max-width: 640px; box-shadow: 10px 10px 0px #ccc; text-align: center; position: relative; }
+        .hidden { display: none; }
+        
+        table.math-layout-table { border-collapse: collapse; margin: 15px auto; table-layout: fixed; }
+        table.math-layout-table td { width: 65px; height: 65px; text-align: center; vertical-align: middle; font-size: 2.3rem; font-weight: bold; padding: 0; position: relative; border: 1px dashed #ddd; }
+        
+        .regroup-row td { font-size: 1.5rem; color: #e67e22; height: 40px; border: none !important; vertical-align: bottom; }
+        .op-cell { border-bottom: 5px solid black !important; }
+        
+        .active-digit { background-color: #fff9c4; border: 4px solid #f1c40f !important; }
+        .borrow-active { background-color: #e8f8f5; border: 2px solid #e67e22 !important; }
+        .little-one { color: #e67e22; font-size: 1.5rem; vertical-align: super; font-weight: bold; margin-right: 1px; }
+        .borrowed-from { text-decoration: line-through; color: #c0392b; opacity: 0.5; }
+        
+        .progress-banner { font-size: 1.1rem; font-weight: bold; color: #7f8c8d; background: #eee; padding: 6px 12px; border-radius: 20px; display: inline-block; margin-bottom: 15px; }
+        .controls { text-align: center; margin-top: 15px; padding: 20px; background: #f9f9f9; border-radius: 10px; border: 2px solid #2c3e50; }
+        .instruction-box { min-height: 55px; font-weight: bold; font-size: 1.3rem; color: #2c3e50; margin-bottom: 15px; line-height: 1.4; }
+        
+        .math-note-box { background: #fff3cd; color: #856404; border: 2px dashed #ffeeba; padding: 10px; border-radius: 6px; font-size: 1.2rem; font-weight: bold; margin-bottom: 15px; display: none; }
+        
+        input[type="number"] { font-size: 1.8rem; padding: 8px; width: 140px; text-align: center; border: 3px solid #333; border-radius: 8px; outline: none; margin-bottom: 10px; }
+        #student-name { width: 80%; font-size: 1.3rem; padding: 10px; margin: 15px auto; display: block; }
+        
+        .btn-group { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 10px; }
+        .row-buttons { display: flex; gap: 10px; width: 100%; justify-content: center; }
+        button.action { font-size: 1.2rem; padding: 10px 25px; background: #2c3e50; color: white; border: none; cursor: pointer; border-radius: 8px; font-weight: bold; }
+        button.skip-btn { font-size: 1.1rem; padding: 10px 20px; background: #e67e22; color: white; border: none; cursor: pointer; border-radius: 8px; font-weight: bold; }
+        button.choice-btn { font-size: 1.2rem; padding: 12px 30px; border: none; cursor: pointer; border-radius: 8px; font-weight: bold; color: white; }
+        button.yes-btn { background: #27ae60; }
+        button.no-btn { background: #e74c3c; }
+        button.exit-btn { font-size: 1rem; padding: 8px 18px; background: #c0392b; color: white; border: none; cursor: pointer; border-radius: 8px; font-weight: bold; width: 85%; margin-top: 5px; }
+        
+        #feedback { margin-top: 12px; min-height: 25px; font-weight: bold; color: #e67e22; font-size: 1.1rem; }
+        .reset-btn { background: #95a5a6; padding: 5px 10px; font-size: 0.8rem; position: absolute; top: 10px; right: 10px; color: white; border-radius: 4px; border: none; cursor: pointer; }
+        .recovery-alert { background-color: #fff2f2 !important; border-color: #e74c3c !important; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <button id="mini-reset" class="reset-btn hidden" onclick="location.reload()">Reset Test</button>
+
+    <div id="setup">
+        <h2>➖ Subtraction Process Diagnostic</h2>
+        <p>Step-by-step column subtraction assessment tracking borrowing breakdowns and basic facts.</p>
+        <br>
+        <label><strong>Student Name:</strong></label>
+        <input type="text" id="student-name" placeholder="First and Last Name" autocomplete="off">
+        <br><br>
+        <button class="action" onclick="startTest()">Begin Challenge ➔</button>
+    </div>
+
+    <div id="math-room" class="hidden">
+        <div id="q-tracker" class="progress-banner">Question 1 of 5</div>
+        <table id="math-table" class="math-layout-table"></table>
+
+        <div class="controls" id="control-panel">
+            <div id="math-note" class="math-note-box"></div>
+            <div id="instruction" class="instruction-box"></div>
+            
+            <div id="input-container">
+                <div id="numeric-zone">
+                    <input type="number" id="user-ans" autocomplete="off" placeholder="?">
+                </div>
+                
+                <div id="boolean-zone" class="hidden" style="margin-bottom: 15px;">
+                    <div class="row-buttons">
+                        <button class="choice-btn yes-btn" onclick="handleBooleanSubmission(true)">YES</button>
+                        <button class="choice-btn no-btn" onclick="handleBooleanSubmission(false)">NO</button>
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <div class="row-buttons">
+                        <button class="action" id="submit-btn" onclick="handleStepSubmission()">Submit</button>
+                        <button class="skip-btn" id="idk-btn" onclick="handleIDKRequest()">I Don't Know</button>
+                    </div>
+                    <button class="exit-btn" id="early-exit-btn" onclick="finishAssessment()">🛑 Submit Early & Finish</button>
+                </div>
+            </div>
+            <div id="feedback"></div>
+        </div>
+    </div>
+
+    <div id="result-screen" class="hidden">
+        <h2>All Done! Great Effort!</h2>
+        <p id="final-stats" style="font-size: 1.6rem; margin: 15px 0; font-weight: bold; color: #27ae60;"></p>
+        <p>Click below to pass your math board metrics along to your dashboard.</p>
+        <br>
+        <button id="submit-form-btn" style="background: #2ecc71; font-size: 1.4rem; padding: 15px 35px; width: 90%; color: white; border: none; font-weight: bold; border-radius: 8px; cursor: pointer;">👉 Send Summary to Google Form</button>
+    </div>
+</div>
+
+<script>
+    let state = [];
+    let maxCols = 0, currentCol = 0;
+    let studentName = "";
+    
+    let activeQuestionNum = 1;
+    const maxQuestions = 5;
+    let problemsServedHistory = [];
+
+    let totalStepsEvaluated = 0;
+    let successfulFirstAttempts = 0;
+    let comprehensiveMistakeLog = [];
+    let failureOnCurrentStep = false;
+    let expectedTargetValue = null;
+
+    let processingPhase = 'compare_digits';
+
+    document.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !document.getElementById('math-room').classList.contains('hidden')) {
+            let submitBtn = document.getElementById('submit-btn');
+            if (!submitBtn.classList.contains('hidden')) {
+                handleStepSubmission();
+            }
+        }
+    });
+
+    function startTest() {
+        studentName = document.getElementById('student-name').value.trim();
+        if(!studentName) return alert("Please type your name before starting.");
+        document.getElementById('setup').classList.add('hidden');
+        document.getElementById('math-room').classList.remove('hidden');
+        document.getElementById('mini-reset').classList.remove('hidden');
+        generateRandomProblem();
+    }
+
+    function generateRandomProblem() {
+        let topVal = Math.floor(Math.random() * 750) + 150;
+        let botVal = Math.floor(Math.random() * (topVal - 25)) + 12;
+
+        let s1 = topVal.toString();
+        let s2 = botVal.toString();
+        
+        maxCols = Math.max(s1.length, s2.length) + 1;
+        let paddedTop = s1.padStart(maxCols, ' ');
+        let paddedBot = s2.padStart(maxCols, ' ');
+        problemsServedHistory.push(`${topVal}-${botVal}`);
+
+        state = [];
+        for (let i = 0; i < maxCols; i++) {
+            state.push({
+                orig: paddedTop[i] === ' ' ? '' : paddedTop[i],
+                currentValue: paddedTop[i] === ' ' ? 0 : parseInt(paddedTop[i]),
+                bot: paddedBot[i] === ' ' ? 0 : parseInt(paddedBot[i]),
+                isCrossedOut: false,
+                hasLittleOne: false,
+                finalAnswer: ""
+            });
+        }
+
+        currentCol = maxCols - 1; 
+        processingPhase = 'compare_digits';
+        document.getElementById('math-note').style.display = "none";
+        document.getElementById('math-note').innerHTML = "";
+        document.getElementById('q-tracker').innerText = `Question ${activeQuestionNum} of ${maxQuestions}`;
+        
+        document.getElementById('user-ans').classList.remove('hidden');
+        document.getElementById('submit-btn').onclick = handleStepSubmission;
+
+        renderGrid();
+        askStepQuestion();
+    }
+
+    function renderGrid() {
+        let table = document.getElementById('math-table');
+        table.style.width = (maxCols * 65) + "px";
+
+        let h = `<tr class="regroup-row">`;
+        for (let i = 0; i < maxCols; i++) {
+            let display = "";
+            if (state[i].isCrossedOut) {
+                let little = state[i].hasLittleOne ? `<span class="little-one">1</span>` : "";
+                display = little + state[i].currentValue;
+            }
+            h += `<td id="r${i}">${display}</td>`;
+        }
+        h += `</tr><tr><td></td>`;
+        for (let i = 1; i < maxCols; i++) {
+            let crossClass = state[i].isCrossedOut ? 'class="borrowed-from"' : '';
+            let little = (!state[i].isCrossedOut && state[i].hasLittleOne) ? `<span class="little-one">1</span>` : "";
+            h += `<td id="t${i}" ${crossClass}>${little}${state[i].orig}</td>`;
+        }
+        h += `</tr><tr class="op-cell"><td>-</td>`;
+        for (let i = 1; i < maxCols; i++) {
+            let displayBot = (state[i].bot === 0 && topNumsRowEmptyBefore(i)) ? '' : state[i].bot;
+            h += `<td id="b${i}">${displayBot}</td>`;
+        }
+        h += `</tr><tr><td></td>`;
+        for (let i = 1; i < maxCols; i++) h += `<td id="ans${i}">${state[i].finalAnswer}</td>`;
+        h += `</tr>`;
+        
+        table.innerHTML = h;
+    }
+
+    function topNumsRowEmptyBefore(idx) {
+        for (let i = 1; i <= idx; i++) {
+            if (state[i].orig !== '') return false;
+        }
+        return true;
+    }
+
+    function askStepQuestion() {
+        document.getElementById('control-panel').classList.remove('recovery-alert');
+        document.getElementById('feedback').innerText = "";
+        
+        let promptBox = document.getElementById('instruction');
+        let numZone = document.getElementById('numeric-zone');
+        let boolZone = document.getElementById('boolean-zone');
+        let submitBtn = document.getElementById('submit-btn');
+        let idkBtn = document.getElementById('idk-btn');
+
+        document.querySelectorAll('td').forEach(td => td.classList.remove('active-digit', 'borrow-active'));
+
+        let valInCol = (state[currentCol].hasLittleOne ? 10 : 0) + state[currentCol].currentValue;
+        let bottomDigit = state[currentCol].bot;
+
+        if (processingPhase === 'compare_digits') {
+            numZone.classList.add('hidden');
+            submitBtn.classList.add('hidden');
+            boolZone.classList.remove('hidden');
+            idkBtn.classList.remove('hidden');
+        } else {
+            boolZone.classList.add('hidden');
+            numZone.classList.remove('hidden');
+            submitBtn.classList.remove('hidden');
+            idkBtn.classList.remove('hidden');
+            
+            let inp = document.getElementById('user-ans');
+            inp.value = "";
+            inp.focus();
+        }
+
+        if (processingPhase === 'compare_digits') {
+            failureOnCurrentStep = false;
+            totalStepsEvaluated++;
+            
+            document.getElementById('t' + currentCol).classList.add('active-digit');
+            document.getElementById('b' + currentCol).classList.add('active-digit');
+
+            promptBox.innerHTML = `🔍 Look at the highlighted column numbers. Can you subtract the bottom digit from the top digit without borrowing?`;
+            expectedTargetValue = (valInCol >= bottomDigit); 
+        } 
+        else if (processingPhase === 'solve_column') {
+            failureOnCurrentStep = false;
+            totalStepsEvaluated++;
+            document.getElementById('t' + currentCol).classList.add('active-digit');
+            document.getElementById('b' + currentCol).classList.add('active-digit');
+
+            promptBox.innerHTML = `➖ Subtract this highlighted column. What is the total?`;
+            expectedTargetValue = valInCol - bottomDigit;
+        } 
+        else if (processingPhase === 'borrow_target') {
+            failureOnCurrentStep = false;
+            totalStepsEvaluated++;
+            document.getElementById('t' + currentCol).classList.add('active-digit');
+            
+            promptBox.innerHTML = `🧩 Correct, you need to borrow! Which digit do you need to borrow from?`;
+            expectedTargetValue = state[currentCol - 1].currentValue;
+        } 
+        else if (processingPhase === 'borrow_decrement') {
+            failureOnCurrentStep = false;
+            totalStepsEvaluated++;
+            document.getElementById('t' + (currentCol - 1)).classList.add('active-digit');
+
+            let originalNeighborValue = state[currentCol - 1].currentValue;
+            promptBox.innerHTML = `🧩 If we take 1 away from that digit, what value does the ${originalNeighborValue} become?`;
+            expectedTargetValue = originalNeighborValue - 1;
+        } 
+        else if (processingPhase === 'borrow_add_ten') {
+            failureOnCurrentStep = false;
+            totalStepsEvaluated++;
+            document.getElementById('t' + currentCol).classList.add('active-digit');
+
+            let originalDigitValue = state[currentCol].currentValue;
+            promptBox.innerHTML = `🚀 Carry that 1 back over to your column. What does your active number ${originalDigitValue} become now?`;
+            expectedTargetValue = 10 + originalDigitValue;
+        }
+    }
+
+    function handleBooleanSubmission(studentChoice) {
+        let fb = document.getElementById('feedback');
+        
+        if (studentChoice === expectedTargetValue) {
+            fb.innerText = "Correct identification!";
+            fb.style.color = "green";
+            
+            if (!failureOnCurrentStep) successfulFirstAttempts++;
+            
+            if (expectedTargetValue === true) {
+                processingPhase = 'solve_column';
+            } else {
+                processingPhase = 'borrow_target';
+            }
+            setTimeout(askStepQuestion, 1000);
+        } else {
+            if (!failureOnCurrentStep) {
+                addMistakeLogEntry('ERROR', studentChoice ? "Said Yes to normal subtraction" : "Said No to normal subtraction");
+                failureOnCurrentStep = true;
+            }
+            document.getElementById('control-panel').classList.add('recovery-alert');
+            fb.style.color = "#e74c3c";
+            fb.innerText = studentChoice ? 
+                `❌ Look closer. The top digit is smaller, so you can't subtract yet!` : 
+                `❌ Take another look. The top digit is already big enough, you don't need to borrow here!`;
+        }
+    }
+
+    function addMistakeLogEntry(issueType, currentInputValue) {
+        let sentenceDescription = `Q${activeQuestionNum}: `;
+        let originalDigitValue = state[currentCol].currentValue;
+        let bottomDigit = state[currentCol].bot;
+
+        if (processingPhase === 'compare_digits') {
+            sentenceDescription += (issueType === 'IDK') ?
+                `Gave up identifying if borrowing was needed for column ${currentCol}.` :
+                `Misidentified borrowing requirement for column ${currentCol} (Input: ${currentInputValue}).`;
+        }
+        else if (processingPhase === 'solve_column') {
+            let displayColumnTotal = (state[currentCol].hasLittleOne ? 10 : 0) + originalDigitValue;
+            sentenceDescription += (issueType === 'IDK') ? 
+                `Gave up calculating column subtraction (${displayColumnTotal} - ${bottomDigit}).` : 
+                `Calculation error subtracting column (${displayColumnTotal} - ${bottomDigit}). Value entered: ${currentInputValue}.`;
+        } 
+        else if (processingPhase === 'borrow_target') {
+            sentenceDescription += (issueType === 'IDK') ? 
+                `Failed to identify where to borrow from for column index ${currentCol}.` : 
+                `Targeted incorrect digit entry value instead of neighboring column value when needing to borrow.`;
+        } 
+        else if (processingPhase === 'borrow_decrement') {
+            let neighborVal = state[currentCol - 1].currentValue;
+            sentenceDescription += (issueType === 'IDK') ? 
+                `Gave up breaking down neighbor value (${neighborVal}).` : 
+                `Failed to subtract 1 cleanly from borrow neighbor value ${neighborVal}.`;
+        } 
+        else if (processingPhase === 'borrow_add_ten') {
+            sentenceDescription += (issueType === 'IDK') ? 
+                `Gave up combining base column with carried group of 10.` : 
+                `Incorrect place value addition adding 10 to current cell value ${originalDigitValue}.`;
+        }
+
+        comprehensiveMistakeLog.push(sentenceDescription);
+    }
+
+    function handleIDKRequest() {
+        if (!failureOnCurrentStep) {
+            addMistakeLogEntry('IDK', 'IDK Clicked');
+            failureOnCurrentStep = true;
+        }
+        
+        let fb = document.getElementById('feedback');
+        let noteBox = document.getElementById('math-note');
+        
+        if (processingPhase === 'compare_digits') {
+            fb.innerText = expectedTargetValue ? "💡 Subtraction is possible without borrowing." : "💡 Borrowing is required here.";
+            fb.style.color = "#e67e22";
+            
+            if (expectedTargetValue === true) {
+                processingPhase = 'solve_column';
+            } else {
+                processingPhase = 'borrow_target';
+            }
+            setTimeout(askStepQuestion, 1500);
+            return;
+        }
+
+        fb.innerText = `💡 The value needed was: ${expectedTargetValue}`;
+        fb.style.color = "#e67e22";
+
+        if (processingPhase === 'solve_column') {
+            let displayColumnTotal = (state[currentCol].hasLittleOne ? 10 : 0) + state[currentCol].currentValue;
+            noteBox.innerHTML = `📌 Math Note: ${displayColumnTotal} - ${state[currentCol].bot} = <strong>${expectedTargetValue}</strong>`;
+            noteBox.style.display = "block";
+        } 
+        else if (processingPhase === 'borrow_target') {
+            noteBox.innerHTML = `📌 Math Note: You need to borrow from the next column over: <strong>${expectedTargetValue}</strong>`;
+            noteBox.style.display = "block";
+        }
+        else if (processingPhase === 'borrow_decrement') {
+            noteBox.innerHTML = `📌 Math Note: Borrowing 1 means: ${state[currentCol - 1].currentValue} - 1 = <strong>${expectedTargetValue}</strong>`;
+            noteBox.style.display = "block";
+        } 
+        else if (processingPhase === 'borrow_add_ten') {
+            noteBox.innerHTML = `📌 Math Note: Carried 10 combined with your base digit: 10 + ${state[currentCol].currentValue} = <strong>${expectedTargetValue}</strong>`;
+            noteBox.style.display = "block";
+        }
+
+        setTimeout(() => {
+            executeValidStepTransition(expectedTargetValue);
+        }, 1500);
+    }
+
+    function handleStepSubmission() {
+        let val = parseInt(document.getElementById('user-ans').value);
+        let fb = document.getElementById('feedback');
+        
+        if (isNaN(val)) return;
+
+        if (val === expectedTargetValue) {
+            fb.innerText = "Correct!";
+            fb.style.color = "green";
+            
+            if (!failureOnCurrentStep) successfulFirstAttempts++;
+            executeValidStepTransition(val);
+        } else {
+            if (!failureOnCurrentStep) {
+                addMistakeLogEntry('ERROR', val);
+                failureOnCurrentStep = true;
+            }
+            document.getElementById('control-panel').classList.add('recovery-alert');
+            fb.style.color = "#e74c3c";
+            fb.innerText = `❌ Not quite. Double check your calculation and try again!`;
+        }
+    }
+
+    function executeValidStepTransition(resolvedValue) {
+        if (processingPhase === 'borrow_target') {
+            document.getElementById('math-note').style.display = "none";
+            document.getElementById('math-note').innerHTML = "";
+            processingPhase = 'borrow_decrement';
+            askStepQuestion();
+        } 
+        else if (processingPhase === 'borrow_decrement') {
+            state[currentCol - 1].currentValue = resolvedValue;
+            state[currentCol - 1].isCrossedOut = true;
+            renderGrid();
+            
+            processingPhase = 'borrow_add_ten';
+            askStepQuestion();
+        } 
+        else if (processingPhase === 'borrow_add_ten') {
+            state[currentCol].hasLittleOne = true;
+            state[currentCol].isCrossedOut = true;
+            
+            document.getElementById('math-note').style.display = "none";
+            document.getElementById('math-note').innerHTML = "";
+            renderGrid();
+            
+            processingPhase = 'solve_column';
+            askStepQuestion();
+        } 
+        else if (processingPhase === 'solve_column') {
+            state[currentCol].finalAnswer = resolvedValue;
+            
+            document.getElementById('math-note').style.display = "none";
+            document.getElementById('math-note').innerHTML = "";
+            renderGrid();
+
+            currentCol--;
+            
+            if (currentCol < 1 || (state[currentCol].orig === '' && state[currentCol].bot === 0)) {
+                handleEndOfProblem();
+            } else {
+                processingPhase = 'compare_digits';
+                askStepQuestion();
+            }
+        }
+    }
+
+    function handleEndOfProblem() {
+        let promptBox = document.getElementById('instruction');
+        promptBox.innerHTML = `🎉 <strong>Equation Completed!</strong> Review the calculation layout above. Click below to continue.`;
+        
+        document.getElementById('user-ans').classList.add('hidden');
+        document.getElementById('idk-btn').classList.add('hidden');
+        
+        let submitBtn = document.getElementById('submit-btn');
+        submitBtn.innerText = "Next Problem ➔";
+        submitBtn.style.background = "#27ae60";
+        submitBtn.onclick = function() {
+            submitBtn.innerText = "Submit";
+            submitBtn.style.background = "#2c3e50";
+            submitBtn.onclick = handleStepSubmission;
+            
+            if (activeQuestionNum < maxQuestions) {
+                activeQuestionNum++;
+                generateRandomProblem();
+            } else {
+                finishAssessment();
+            }
+        };
+    }
+
+    function finishAssessment() {
+        document.getElementById('math-room').classList.add('hidden');
+        document.getElementById('mini-reset').classList.remove('hidden');
+        document.getElementById('result-screen').classList.remove('hidden');
+        
+        if (totalStepsEvaluated === 0) totalStepsEvaluated = 1;
+        
+        const diagnosticScore = `${successfulFirstAttempts}/${totalStepsEvaluated}`;
+        document.getElementById('final-stats').innerText = `Process Accuracy: ${diagnosticScore}`;
+        
+        const cleanProblemsServed = problemsServedHistory.join(', ');
+        let cleanLog = comprehensiveMistakeLog.length > 0 ? comprehensiveMistakeLog.join('\n') : "None! Perfect Component Mastery Across Attempted Steps.";
+        
+        if (activeQuestionNum < maxQuestions) {
+            cleanLog += `\n(Early Finalized on Question ${activeQuestionNum})`;
+        }
+
+        const encName = encodeURIComponent(studentName);
+        const encProblems = encodeURIComponent(cleanProblemsServed);
+        const encScore = encodeURIComponent(diagnosticScore);
+        const encLog = encodeURIComponent(cleanLog);
+
+        // CONNECTED TO YOUR GOOGLE FORM:
+        const finalTargetURL = `https://docs.google.com/forms/d/e/1FAIpQLSdowAkM-WcvejravEBsSsDe-Sv29u0RHplGK6bqrodBDng0yg/viewform?usp=pp_url&entry.434775335=${encName}&entry.2104287633=${encProblems}&entry.1214081834=${encScore}&entry.450413095=${encLog}`;
+
+        document.getElementById('submit-form-btn').onclick = function() {
+            window.open(finalTargetURL, '_blank');
+            location.reload();
+        };
+    }
+</script>
+</body>
+</html>
